@@ -1,5 +1,5 @@
 set -Eeuo pipefail
-# SCRIPT_DIR_PATH="$(dirname "$(realpath $0)")"
+SCRIPT_DIR_PATH="$(dirname "$(realpath $0)")"
 
 # logging (Can be a noun (the system/activity) or a verb (the action happening right now)): The overall process or act of recording information about a program's execution.
 # logger (Always a noun (the object or tool)): The object or "tool" within your code that captures events and passes them to a destination (like a file or console).
@@ -893,11 +893,17 @@ function main() {
 
             logger INFO "Generating SNP/Indel variant report (XLSX) for sample ${green_color}$sample_id${reset}"
 
-            /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
-                python3 - \
+            if [ -f "$SCRIPT_DIR_PATH/generate_snp_and_indel_variants_xlsx_report.py" ]; then
+                /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
+                python3 "$SCRIPT_DIR_PATH/generate_snp_and_indel_variants_xlsx_report.py" \
                     -I "${output_dir_path}/${sample_id}/${sample_id}.final.vcf" \
-                    -O "${output_dir_path}/${sample_id}/${sample_id}.${extension}.xlsx" \
-                    << 'PYTHON'
+                    -O "${output_dir_path}/${sample_id}/${sample_id}.${extension}.xlsx" 
+            else 
+                /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
+                    python3 - \
+                        -I "${output_dir_path}/${sample_id}/${sample_id}.final.vcf" \
+                        -O "${output_dir_path}/${sample_id}/${sample_id}.${extension}.xlsx" \
+                        << 'PYTHON'
 import argparse
 import pandas as pd
 from cyvcf2 import VCF
@@ -1347,6 +1353,7 @@ with pd.ExcelWriter(f"{output_file_path}", engine="xlsxwriter") as writer:
     for row_num in range(1, len(data_frame_filled) + 1):
         worksheet.set_row(row_num, 15.5, data_format)                    
 PYTHON
+            fi
         done
     else
         logger INFO "Skipping SNP/Indel variant calling (requested types: ${variant_types[*]})"
@@ -1422,11 +1429,17 @@ PYTHON
                     "${output_dir_path}/${sample_id}/${sample_id}.cns" \
                     -o "${output_dir_path}/${sample_id}/${sample_id}.call.cns"
             
-            /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
-                python3 - \
-                    -I "${output_dir_path}/${sample_id}/${sample_id}.call.cns" \
-                    -O "${output_dir_path}/${sample_id}/${sample_id}.CNVs.xlsx" \
-                    << 'PYTHON'
+            if [ -f "$SCRIPT_DIR_PATH/generate_copy_number_variants_xlsx_report.py" ]; then
+                /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
+                    python3 "$SCRIPT_DIR_PATH/generate_copy_number_variants_xlsx_report.py" \
+                        -I "${output_dir_path}/${sample_id}/${sample_id}.call.cns" \
+                        -O "${output_dir_path}/${sample_id}/${sample_id}.CNVs.xlsx"
+            else 
+                /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
+                    python3 - \
+                        -I "${output_dir_path}/${sample_id}/${sample_id}.call.cns" \
+                        -O "${output_dir_path}/${sample_id}/${sample_id}.CNVs.xlsx" \
+                        << 'PYTHON'
 import argparse
 import pandas as pd
 import logging
@@ -1589,6 +1602,7 @@ with pd.ExcelWriter(f"{output_file_path}", engine="xlsxwriter") as writer:
     for row_num in range(1, len(data_frame_filled) + 1):
         worksheet.set_row(row_num, 15.5, data_format)
 PYTHON
+            fi
         done
     else
         logger INFO "Skipping copy number variant (CNV) calling (requested types: ${variant_types[*]})"

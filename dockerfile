@@ -15,7 +15,7 @@ RUN pixi global install -e ngs_pipeline_r -c conda-forge -c bioconda \
 FROM ubuntu
 WORKDIR /opt/ngs-pipeline
 COPY --from=build /root/.pixi /root/.pixi 
-COPY ngs_pipeline.sh call_variants.sh /opt/ngs-pipeline/
+COPY src /opt/ngs-pipeline/src/
 ENV PATH="/opt/ngs-pipeline/:/root/.pixi/bin:$PATH"
-RUN chmod +x /opt/ngs-pipeline/ngs_pipeline.sh
-RUN ln -s /opt/ngs-pipeline/ngs_pipeline.sh /opt/ngs-pipeline/ngs_pipeline
+RUN chmod +x /opt/ngs-pipeline/src/main.sh
+RUN ln -s /opt/ngs-pipeline/src/main.sh /opt/ngs-pipeline/ngs_pipeline
