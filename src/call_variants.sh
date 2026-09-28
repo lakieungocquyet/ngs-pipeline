@@ -1,5 +1,5 @@
 set -Eeuo pipefail
-SCRIPT_DIR_PATH="$(dirname "$(realpath $0)")"
+SCRIPT_DIR_PATH="$(dirname "$(realpath "$0")")"
 
 # logging (Can be a noun (the system/activity) or a verb (the action happening right now)): The overall process or act of recording information about a program's execution.
 # logger (Always a noun (the object or tool)): The object or "tool" within your code that captures events and passes them to a destination (like a file or console).
@@ -102,7 +102,7 @@ function help() {
     echo "About: Run variant calling pipeline"
     echo "Usage:"
     echo ""
-    echo "       forge call-variants [arguments]"
+    echo "       ngs-pipeline call-variants [arguments]"
     echo ""
     echo "Arguments:"
     echo ""
@@ -126,6 +126,9 @@ function help() {
     echo "    --variant-types <TYPE> [<TYPE> ...]"
     echo "        One or more variant types to call, separated by a space. Allowed values: snp, indel, cnv, all (default: all)"
     echo ""
+    echo "    --sequencing-platform <PLATFORM>"
+    echo "        Sequencing platform of all samples. Allowed values: illumina, nanopore, pacbio (default: illumina)"
+    echo ""
     echo "    --standard-annotation-resources <resource_name>:<file_path> [<resource_name>:<file_path> ...]"
     echo "        One or more annotation resource databases, each given as <resource_name>:<file_path>, separated by a space."
     echo ""
@@ -138,7 +141,7 @@ function help() {
     echo "            dbnsfp:<TXT>          dbNSFP functional prediction database"
     echo ""
     echo "            Example:"
-    echo "                --standard-annotation-resource \ "
+    echo "                --standard-annotation-resources \ "
     echo "                    dbsnp138:dbsnp138.vcf.gz  \ " 
     echo "                    clinvar:clinvar.vcf.gz"
     echo ""
@@ -174,11 +177,11 @@ function is_valid_annotation_name() {
 }
 
 # ----------------------------------------------------------------------------------------------------
-valid_platforms=("illumina" "nanopore" "pacbio")
+valid_sequencing_platforms=("illumina" "nanopore" "pacbio")
 
-is_valid_platform() {
+is_valid_sequencing_platform() {
     local p="$1"
-    for valid in "${valid_platforms[@]}"; do
+    for valid in "${valid_sequencing_platforms[@]}"; do
         [[ "$p" == "$valid" ]] && return 0
     done
     return 1
@@ -223,11 +226,17 @@ while [[ $# -gt 0 ]]; do
             ;;
         --bqsr-known-sites)
             mapfile -t consumed < <(require_list_value "$1" "${@:2}")
+            if [[ ${#consumed[@]} -eq 0 ]]; then # Nếu truyền flag nhưng không truyền value thì exit 3
+                exit 3
+            fi
             bqsr_known_sites+=("${consumed[@]}")
             shift $(( ${#consumed[@]} + 1 ))
             ;;
         --variant-types)
             mapfile -t consumed < <(require_list_value "$1" "${@:2}")
+            if [[ ${#consumed[@]} -eq 0 ]]; then # Nếu truyền flag nhưng không truyền value thì exit 3
+                exit 3
+            fi
             shift $(( ${#consumed[@]} + 1 ))
 
             for vt in "${consumed[@]}"; do
@@ -246,8 +255,15 @@ while [[ $# -gt 0 ]]; do
                 fi
             done
             ;;
+        --sequencing-platform)
+            sequencing_platform="$(require_value "$1" "$2" "$#")"
+            shift 2
+            ;;
         --standard-annotation-resources)
             mapfile -t consumed < <(require_list_value "$1" "${@:2}")
+            if [[ ${#consumed[@]} -eq 0 ]]; then # Nếu truyền flag nhưng không truyền value thì exit 3
+                exit 3
+            fi
             shift $(( ${#consumed[@]} + 1 ))
 
             for entry in "${consumed[@]}"; do
@@ -323,6 +339,16 @@ if [[ -z "${reference_genome_file_path:-}" ]]; then
     exit 1
 fi
 
+if [[ -z "${regions_file_path:-}" ]]; then
+    logger ERROR "Missing required argument: -r/--regions"
+    exit 1
+fi
+
+if [[ ! -f "$regions_file_path" ]]; then
+    logger ERROR "Cannot find regions file: $regions_file_path"
+    exit 1
+fi
+
 if [[ ! -f "$input_file_path" ]]; then
     logger ERROR "Input file not found: $input_file_path"
     exit 1
@@ -337,12 +363,6 @@ fi
 #         VALIDATE OPTIONAL ARGUMENTS               #
 #==================================================#
 
-# --regions (optional, nhưng nếu có truyền thì file phải tồn tại)
-if [[ -n "${regions_file_path:-}" && ! -f "$regions_file_path" ]]; then
-    logger ERROR "Regions file not found: $regions_file_path"
-    exit 1
-fi
-
 # --bqsr-known-sites (optional, cảnh báo nếu file không tồn tại, không exit)
 for site in "${bqsr_known_sites[@]}"; do
     if [[ ! -f "$site" ]]; then
@@ -353,6 +373,12 @@ done
 # --variant-type: mặc định "all" nếu không truyền
 if [[ ${#variant_types[@]} -eq 0 ]]; then
     variant_types=("all")
+fi
+
+sequencing_platform="${sequencing_platform:-illumina}"
+if ! is_valid_sequencing_platform "$sequencing_platform"; then
+    logger ERROR "Unsupported --sequencing-platform '${sequencing_platform}'. Supported platforms: ${valid_sequencing_platforms[*]}"
+    exit 1
 fi
 
 # --threads: mặc định 4, phải là số nguyên dương
@@ -415,17 +441,11 @@ parse_sample_config() {
 
     for sample_json in "${samples[@]}"; do
         id=$(jq -r '.id // empty' <<< "$sample_json")
-        platform=$(jq -r '.platform // empty' <<< "$sample_json")
         read1=$(jq -r '.read1 // empty' <<< "$sample_json")
         read2=$(jq -r '.read2 // empty' <<< "$sample_json")
 
-        if [[ -z "$id" || -z "$platform" || -z "$read1" || -z "$read2" ]]; then
+        if [[ -z "$id" || -z "$read1" || -z "$read2" ]]; then
             logger ERROR "Sample is missing one or more required fields: $sample_json"
-            exit 1
-        fi
-
-        if ! is_valid_platform "$platform"; then
-            logger ERROR "Unsupported platform '$platform' for sample '$id'. Supported platforms: ${valid_platforms[*]}"
             exit 1
         fi
 
@@ -460,24 +480,7 @@ should_run_cnv() {
     contains_variant_type "cnv"
 }
 
-# DEBUG
-echo $input_file_path
-echo $output_dir_path
-echo $reference_genome_file_path
-echo $regions_file_path
-
-for bqsr_known_site in "${bqsr_known_sites[@]}"; do
-    echo "$bqsr_known_site"
-done
-
-for db_name in "${!standard_annotation_resources[@]}"; do
-    db_path="${standard_annotation_resources[$db_name]}"
-    echo "DB=$db_name  PATH=$db_path"
-done
-
-parse_sample_config "$input_file_path"
-echo "${#samples[@]}"
-echo "${samples[0]}"   
+parse_sample_config "$input_file_path" 
 
 cyan_color="\e[36m"  # cyan
 green_color="\e[32m"   # green
@@ -490,12 +493,34 @@ for site in "${bqsr_known_sites[@]}"; do
     [ -f "$site" ] && BQSR_FLAGS+=(--known-sites "$site")
 done
 
-echo "${BQSR_FLAGS[@]}"
-
 GVCF_COMBINE_FLAGS=()
 
 mkdir -p "$output_dir_path/log" 
 WORKFLOW_RUNTIME_LOG_FILE_PATH="$output_dir_path/log/workflow.runtime.log"
+
+case "$sequencing_platform" in
+    illumina) read_group_sequencing_platform="ILLUMINA" ;;
+    nanopore) read_group_sequencing_platform="ONT" ;;
+    pacbio)   read_group_sequencing_platform="PACBIO" ;;
+esac
+
+# DEBUG
+# echo $input_file_path
+# echo $output_dir_path
+# echo $reference_genome_file_path
+# echo $regions_file_path
+
+# for bqsr_known_site in "${bqsr_known_sites[@]}"; do
+#     echo "$bqsr_known_site"
+# done
+
+# for db_name in "${!standard_annotation_resources[@]}"; do
+#     db_path="${standard_annotation_resources[$db_name]}"
+#     echo "DB=$db_name  PATH=$db_path"
+# done
+# echo "${BQSR_FLAGS[@]}"
+# echo "${#samples[@]}"
+# echo "${samples[0]}"  
 
 function main() {
 
@@ -517,7 +542,14 @@ function main() {
         --argjson min_memory_gb "$min_memory_gb" \
         --argjson max_memory_gb "$max_memory_gb" \
         --argjson variant_types "$(printf '%s\n' "${variant_types[@]}" | jq -R . | jq -s .)" \
-        --argjson bqsr_known_sites "$(printf '%s\n' "${bqsr_known_sites[@]}" | jq -R . | jq -s .)" \
+        --arg sequencing_platform "$sequencing_platform" \
+        --argjson bqsr_known_sites "$(
+            if [[ ${#bqsr_known_sites[@]} -gt 0 ]]; then
+                printf '%s\n' "${bqsr_known_sites[@]}" | jq -R . | jq -s .
+            else
+                echo '[]'
+            fi
+        )" \
         --argjson standard_annotation_resources "$(
             for key in "${!standard_annotation_resources[@]}"; do
                 jq -n --arg k "$key" --arg v "${standard_annotation_resources[$key]}" '{($k): $v}'
@@ -537,6 +569,7 @@ function main() {
                 min_memory_gb: $min_memory_gb,
                 max_memory_gb: $max_memory_gb,
                 variant_types: $variant_types,
+                sequencing_platform: $sequencing_platform,
                 bqsr_known_sites: $bqsr_known_sites,
                 standard_annotation_resources: $standard_annotation_resources
             }
@@ -559,16 +592,15 @@ function main() {
     for sample in "${samples[@]}"; do
         # Extract sample metadata for the workflow
         sample_id=$(jq -r '.id' <<< "$sample")
-        sample_platform=$(jq -r '.platform' <<< "$sample")
         sample_read1=$(jq -r '.read1' <<< "$sample")
         sample_read2=$(jq -r '.read2' <<< "$sample")
 
         # Mapping and alignment
-        logger INFO "Mapping and Aligning ${green_color}$sample_id${reset} reads to reference genome" 
+        logger INFO "Mapping and aligning ${green_color}$sample_id${reset} reads to reference genome" 
 
         /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" bash -c "
             bwa mem -t ${threads} \
-                -R \"@RG\tID:${sample_id}\tLB:lib1\tPL:${sample_platform}\tPU:unit1\tSM:${sample_id}\" \
+                -R \"@RG\tID:${sample_id}\tLB:lib1\tPL:${read_group_sequencing_platform}\tPU:unit1\tSM:${sample_id}\" \
                 \"${reference_genome_file_path}\" \
                 \"${sample_read1}\" \
                 \"${sample_read2}\" | \
@@ -637,10 +669,9 @@ function main() {
 
                 cp "${output_dir_path}/${sample_id}/${sample_id}.sorted.marked.recalibrated.bam" \
                     "${output_dir_path}/${sample_id}/${sample_id}.final.bam"
-
-                /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
-                    samtools index "${output_dir_path}/${sample_id}/${sample_id}.final.bam"
             fi
+            /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
+                samtools index "${output_dir_path}/${sample_id}/${sample_id}.final.bam"
         done
 
         for sample in "${samples[@]}"; do
