@@ -9,6 +9,8 @@ This repository contains source code. The contents of this repository are 100% o
 
 # Installation
 
+## Build from source
+
 ### 1. Install [pixi](https://pixi.prefix.dev/latest/)
 
 Pixi is a package and environment management tool. `ngs-pipeline` uses Pixi to manage dependencies and tasks.
@@ -36,113 +38,130 @@ git clone https://github.com/lakieungocquyet/ngs-pipeline.git
 ```
 cd ngs-pipeline && source install.sh
 ```
+## Using [Docker](https://www.docker.com/)
 
-<!-- # How to use
+### Pulling the images
+The Docker images for `ngs-pipeline` are available on [GitHub Container Registry (GHCR)](https://github.com/lakieungocquyet/ngs-pipeline/pkgs/container/ngs-pipeline).
+
+To pull the latest image, run:
+
+```
+docker pull ghcr.io/lakieungocquyet/ngs-pipeline:latest
+```
+
+To pull a specific version, replace `latest` with the desired version tag:
+```
+BIN_VERSION="v0.1.0"
+
+docker pull ghcr.io/lakieungocquyet/ngs-pipeline:${BIN_VERSION}
+```
+
+# How to use
 ### 1. Prepare input data
-Prepare your Whole Exome Sequencing (WES) raw data (typically FASTQ files). 
+Prepare your NGS raw data (typically FASTQ files). 
 
 Example:
 
 ```
 home/
 └──user/
-    └──input/
-        ├── sample1/
+    └──NGS_samples/
+        ├── sample01/
         │   ├── sample1.R1.fastq.gz
         │   └── sample1.R2.fastq.gz
-        └── sample2/
+        └── sample02/
             ├── sample2.R1.fastq.gz
             └── sample2.R2.fastq.gz
 ```
 ### 2. Configure input parameters (YAML)
 
-Forge uses a YAML configuration file to define inputs, outputs.
+`ngs-pipeline` uses a YAML configuration file to define the input samples.
 
-Example: run.yaml
-```
+Example: `run.yaml`
+
+```yaml
 # Please don't use tab characters for indentation in this file. Use spaces only.
 sample: [
-  { 
-    id: NF2_01, 
-    platform: "illumina", 
-    read1: /home/lknq/WES_samples/NF2_01/NF2_01_1.trim.fastq.gz,
-    read2: /home/lknq/WES_samples/NF2_01/NF2_01_2.trim.fastq.gz
+  {
+    id: sample01,
+    read1: /home/user/NGS_samples/sample01/sample01_1.trim.fastq.gz,
+    read2: /home/user/NGS_samples/sample01/sample01_2.trim.fastq.gz
   },
-  { 
-    id: RGNC07, 
-    platform: "illumina", 
-    read1: /home/lknq/WES_samples/RGNC07/RGNC07_1.trim.fastq.gz,
-    read2: /home/lknq/WES_samples/RGNC07/RGNC07_2.trim.fastq.gz
+  {
+    id: sample02,
+    read1: /home/user/NGS_samples/sample02/sample02_1.trim.fastq.gz,
+    read2: /home/user/NGS_samples/sample02/sample02_2.trim.fastq.gz
   },
   # You can add more samples as needed
-  # { 
-  #   id: , 
-  #   platform: , # platform: (illumina/nanopore/pacbio)
+  # {
+  #   id: ,
   #   read1: ,
-  #   read2: 
+  #   read2:
   # },
 ]
 ```
+
 #### Configuration details
 
 The YAML configuration file includes:
 
-- `sample`: list of samples with metadata and file paths  
+- `sample`: list of samples with their file paths
 
 Fields:
 
-- `id`: unique sample identifier  
-- `platform`: sequencing platform (e.g., illumina)  
-- `read1`, `read2`: paths to paired-end FASTQ files  
+- `id`: unique sample identifier
+- `read1`, `read2`: paths to paired-end FASTQ files
+
 ### 3. Run the variant calling pipeline
 
 Example:
 
-```
-forge callvariants \
-    -I ~/GitHub/forge/example/input.yaml \
-    -O ~/GitHub/forge/results \
-    -R ~/GitHub/forge/resources/hg19/reference_genome_hg19/hg19.p13.plusMT.no_alt_analysis_set.fa \
-    -r ~/GitHub/forge/resources/hg19/regions_hg19/s07604624_hg19/s07604624_covered.bed \
+```bash
+ngs-pipeline call-variants \
+    -I ~/ngs-pipeline/example/run.yaml \
+    -O ~/ngs-pipeline/results \
+    -R ~/ngs-pipeline/resources/hg19/reference_genome_hg19/hg19.p13.plusMT.no_alt_analysis_set.fa \
+    -r ~/ngs-pipeline/resources/hg19/regions_hg19/s07604624_hg19/s07604624_covered.bed \
+    --variant-types snp indel cnv \
+    --sequencing-platform illumina \
     --bqsr-known-sites \
-        ~/GitHub/forge/resources/hg19/variant_resources_hg19/1000g_phase1_indels_hg19/1000G_phase1.indels.hg19.sites.vcf.bgz \
-        ~/GitHub/forge/resources/hg19/variant_resources_hg19/dbsnp_138_hg19/dbsnp_138.hg19.vcf.bgz \
-        ~/GitHub/forge/resources/hg19/variant_resources_hg19/1000g_omni2_5_hg19/1000G_omni2.5.hg19.sites.vcf.bgz \
-    --annotation-resource \
-        dbsnp_138=~/GitHub/forge/resources/hg19/variant_resources_hg19/dbsnp_138_hg19/dbsnp_138.hg19.vcf.bgz \
-        phase1_1000g_indels=~/GitHub/forge/resources/hg19/variant_resources_hg19/1000g_phase1_indels_hg19/1000G_phase1.indels.hg19.sites.vcf.bgz \
-        omni2_5_1000g=~/GitHub/forge/resources/hg19/variant_resources_hg19/1000g_omni2_5_hg19/1000G_omni2.5.hg19.sites.vcf.bgz \
-    --annotation-resource \
-        clinvar=~/GitHub/forge/resources/hg19/variant_resources_hg19/clinvar_20240716_hg19/clinvar_20240716.hg19.vcf.bgz \
-        dbnsfp=~/GitHub/forge/resources/hg19/variant_resources_hg19/dbnsfp4_9a_hg19/dbnsfp4.9a_hg19.txt.bgz \
-        esp6500si_v2_ssa137=~/GitHub/forge/resources/hg19/variant_resources_hg19/esp6500si_v2_ssa137_hg19/esp6500si_v2_ssa137.hg19.vcf.bgz \
-        phase3_1000g_v4_20130502=~/GitHub/forge/resources/hg19/variant_resources_hg19/1000g_phase3_v4_20130502_sites_hg19/1000G_phase3_v4_20130502.sites.hg19.vcf.bgz \
+        ~/ngs-pipeline/resources/hg19/variant_resources_hg19/1000g_phase1_indels_hg19/1000G_phase1.indels.hg19.sites.vcf.bgz \
+        ~/ngs-pipeline/resources/hg19/variant_resources_hg19/dbsnp_138_hg19/dbsnp_138.hg19.vcf.bgz \
+        ~/ngs-pipeline/resources/hg19/variant_resources_hg19/1000g_omni2_5_hg19/1000G_omni2.5.hg19.sites.vcf.bgz \
+    --standard-annotation-resources \
+        dbsnp138:~/ngs-pipeline/resources/hg19/variant_resources_hg19/dbsnp_138_hg19/dbsnp_138.hg19.vcf.bgz \
+        clinvar:~/ngs-pipeline/resources/hg19/variant_resources_hg19/clinvar_20240716_hg19/clinvar_20240716.hg19.vcf.bgz \
+        dbnsfp:~/ngs-pipeline/resources/hg19/variant_resources_hg19/dbnsfp4_9a_hg19/dbnsfp4.9a_hg19.txt.bgz \
+        esp6500:~/ngs-pipeline/resources/hg19/variant_resources_hg19/esp6500si_v2_ssa137_hg19/esp6500si_v2_ssa137.hg19.vcf.bgz \
+        1000g-phase3:~/ngs-pipeline/resources/hg19/variant_resources_hg19/1000g_phase3_v4_20130502_sites_hg19/1000G_phase3_v4_20130502.sites.hg19.vcf.bgz \
     -t 8 \
     --min-memory 8 \
     --max-memory 20
-``` -->
+```
+
+Results are written to a timestamped subdirectory of the `-O` path, e.g. `~/ngs-pipeline/results/2026-09-28_10h-30m-00s_UTC_call-variants/`.
 # Commands
 
-`ngs_pipeline` provides commands for analyzing sequencing data. You can access help from the command line with the `--help` flag:
+`ngs-pipeline` provides commands for analyzing sequencing data. You can access help from the command line with the `--help` flag:
 
 ```
-ngs_pipeline --help
+ngs-pipeline --help
 ```
 
-## `ngs_pipeline`
+## `ngs-pipeline`
 
 | Command | Description |
 |---------|-------------|
 | `call-variants` | Run variant calling pipeline |
-| `--help` | Show help message for `ngs_pipeline` and exit |
+| `--help` | Show help message for `ngs-pipeline` and exit |
 
-* `ngs_pipeline call-variants`
+* `ngs-pipeline call-variants`
 
 ```
 About: Run variant calling pipeline
 Usage:
 
-       forge call-variants [arguments]
+       ngs-pipeline call-variants [arguments]
 
 Arguments:
 
@@ -164,6 +183,9 @@ Arguments:
     --variant-types <TYPE> [<TYPE> ...]
         One or more variant types to call, separated by a space. Allowed values: snp, indel, cnv, all (default: all)
 
+    --sequencing-platform <PLATFORM>
+        Sequencing platform of all samples. Allowed values: illumina, nanopore, pacbio (default: illumina)
+
     --standard-annotation-resources <resource_name>:<file_path> [<resource_name>:<file_path> ...]
         One or more annotation resource databases, each given as <resource_name>:<file_path>, separated by a space.
 
@@ -176,7 +198,7 @@ Arguments:
             dbnsfp:<TXT>          dbNSFP functional prediction database
 
             Example:
-                --standard-annotation-resource \ 
+                --standard-annotation-resources \ 
                     dbsnp138:dbsnp138.vcf.gz  \ 
                     clinvar:clinvar.vcf.gz
 
@@ -193,43 +215,24 @@ Arguments:
         Show this help message and exit
 ```
 
-<!-- * `forge identify-hla-alleles`
-```
-About: Run HLA typing pipeline
-Usage:
-
-       forge identify-hla-alleles [arguments]
-
-Arguments:
-
-  Required arguments:
-    -I, --input <YAML>  Path to the YAML configuration file (e.g., run.yaml)
-    -O, --output <DIR>  Path to the directory where results will be stored (e.g., ~/result/)
-
-  Others:
-    -h, --help          Show this help message and exit
-``` -->
-
 # Dependencies
 
 This tool relies on multiple third-party tools, Python libraries and R libraries
 
 ## External tools
-- `bwa` -  [Github](https://github.com/lh3/bwa) | [Website](https://bio-bwa.sourceforge.net/)
-- `samtools` -  [Github](https://github.com/samtools/samtools) | [Website](https://www.htslib.org/)
-- `bcftools` -  [Github](https://github.com/samtools/bcftools) | [Website](https://samtools.github.io/bcftools/bcftools.html)
-- `gatk` -  [Github](https://github.com/broadinstitute/gatk) | [Website](https://gatk.broadinstitute.org/hc/en-us)
-- `snpeff` -  [Github](https://github.com/pcingola/SnpEff) | [Website](https://pcingola.github.io/SnpEff/)
-- `snpsift` -  [Github](https://github.com/pcingola/SnpSift) | [Website](https://pcingola.github.io/SnpEff/)
-- `t1k` -  [Github](https://github.com/mourisl/T1K) 
-
-- `jq` -  [Github](https://github.com/jqlang/jq) | [Website](https://jqlang.org/)
+- `bwa` -  [GitHub](https://github.com/lh3/bwa) | [Website](https://bio-bwa.sourceforge.net/)
+- `samtools` -  [GitHub](https://github.com/samtools/samtools) | [Website](https://www.htslib.org/)
+- `bcftools` -  [GitHub](https://github.com/samtools/bcftools) | [Website](https://samtools.github.io/bcftools/bcftools.html)
+- `gatk` -  [GitHub](https://github.com/broadinstitute/gatk) | [Website](https://gatk.broadinstitute.org/hc/en-us)
+- `snpeff` -  [GitHub](https://github.com/pcingola/SnpEff) | [Website](https://pcingola.github.io/SnpEff/)
+- `snpsift` -  [GitHub](https://github.com/pcingola/SnpSift) | [Website](https://pcingola.github.io/SnpEff/)
+- `cnvkit` - [GitHub](https://github.com/etal/cnvkit) | [Website](https://cnvkit.readthedocs.io/en/stable/)
+- `jq` -  [GitHub](https://github.com/jqlang/jq) | [Website](https://jqlang.org/)
+- `yq` -  [GitHub](https://github.com/mikefarah/yq) | [Website](https://mikefarah.gitbook.io/yq)
 ## Python libraries
 
-- `pyyaml`
 - `pandas`
 - `xlsxwriter`
-- `seaborn`
 - `cyvcf2`
 
 ## R libraries
