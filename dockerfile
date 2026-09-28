@@ -18,4 +18,4 @@ COPY --from=build /root/.pixi /root/.pixi
 COPY src /opt/ngs-pipeline/src/
 ENV PATH="/opt/ngs-pipeline/:/root/.pixi/bin:$PATH"
 RUN chmod +x /opt/ngs-pipeline/src/main.sh
-RUN ln -s /opt/ngs-pipeline/src/main.sh /opt/ngs-pipeline/ngs_pipeline
+RUN ln -s /opt/ngs-pipeline/src/main.sh /opt/ngs-pipeline/ngs-pipeline

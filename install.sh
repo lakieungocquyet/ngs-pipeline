@@ -27,5 +27,5 @@ echo "export PATH=\"$SCRIPT_DIR_PATH:\$PATH\"" >> ~/.bashrc
 echo "# <<< added by NGS pipeline installer <<<" >> ~/.bashrc
 
 chmod +x "$SCRIPT_DIR_PATH/src/main.sh"
-ln -s "$SCRIPT_DIR_PATH/src/main.sh" "$SCRIPT_DIR_PATH/ngs_pipeline"
+ln -s "$SCRIPT_DIR_PATH/src/main.sh" "$SCRIPT_DIR_PATH/ngs-pipeline"
 source ~/.bashrc
