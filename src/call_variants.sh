@@ -629,6 +629,13 @@ function main() {
             samtools index "${output_dir_path}/${sample_id}/${sample_id}.sorted.marked.bam"
 
     done
+
+    for sample in "${samples[@]}"; do
+        # Extract sample metadata for the workflow
+        sample_id=$(jq -r '.id' <<< "$sample")
+        rm -rf "${output_dir_path}/${sample_id}/${sample_id}.sorted.bam"
+    done  
+    
     #====================================================================================================#
     #                                     SNP AND INDEL VARIANTS                                         #
     #====================================================================================================#
@@ -673,6 +680,12 @@ function main() {
             /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
                 samtools index "${output_dir_path}/${sample_id}/${sample_id}.final.bam"
         done
+
+        for sample in "${samples[@]}"; do
+            # Extract sample metadata for the workflow
+            sample_id=$(jq -r '.id' <<< "$sample")
+            rm -rf "${output_dir_path}/${sample_id}/${sample_id}.sorted.marked.recalibrated.bam"
+        done  
 
         for sample in "${samples[@]}"; do
             # Extract sample metadata for the workflow
@@ -728,6 +741,13 @@ function main() {
                     --read-validation-stringency SILENT \
                     --verbosity INFO
         done
+
+        for sample in "${samples[@]}"; do
+            # Extract sample metadata for the workflow
+            sample_id=$(jq -r '.id' <<< "$sample")
+            rm -rf "${output_dir_path}/${sample_id}/${sample_id}.final.bam"
+        done  
+
         sample_ids=()
         for sample in "${samples[@]}"; do
             sample_ids+=("$(jq -r '.id' <<< "$sample")")
@@ -742,6 +762,13 @@ function main() {
                 -R "${reference_genome_file_path}" \
                 "${GVCF_COMBINE_FLAGS[@]}" \
                 -O "${output_dir_path}/cohort.g.vcf"
+
+        # Remove temp file
+        for sample in "${samples[@]}"; do
+            # Extract sample metadata for the workflow
+            sample_id=$(jq -r '.id' <<< "$sample")
+            rm -rf "${output_dir_path}/${sample_id}/${sample_id}.g.vcf"
+        done  
 
         # Genotype combined GVCF
         logger INFO "Genotyping combined GVCF for cohort: ${green_color}${sample_ids_joined}${reset}"
@@ -771,6 +798,9 @@ function main() {
                 --read-validation-stringency SILENT \
                 --verbosity INFO
 
+        # Remove temp file
+        rm -rf "${output_dir_path}/cohort.g.vcf"
+
         # Filter variants
         logger INFO "Filtering variants for cohort: ${green_color}${sample_ids_joined}${reset}"
         /usr/bin/time -v -a -o "${WORKFLOW_RUNTIME_LOG_FILE_PATH}" \
@@ -783,6 +813,9 @@ function main() {
                 --filter-name "MG_INDEL_Filter" \
                 -O "${output_dir_path}/cohort.filtered.vcf"
 
+        # Remove temp file
+        rm -rf "${output_dir_path}/cohort.vcf"
+
         # Normalize combined VCF
         logger INFO "Normalizing filtered VCF for cohort: ${green_color}${sample_ids_joined}${reset}"
 
@@ -792,6 +825,8 @@ function main() {
                 "${output_dir_path}/cohort.filtered.vcf" \
                 -o "${output_dir_path}/cohort.filtered.normalized.vcf"
 
+        # Remove temp file        
+        rm -rf "${output_dir_path}/cohort.filtered.vcf"
         #==================================================#
         #             TERTIARY DATA ANALYSIS               #
         #==================================================#
@@ -804,6 +839,9 @@ function main() {
                 "${output_dir_path}/cohort.filtered.normalized.vcf" \
                 > "${output_dir_path}/cohort.filtered.normalized.annotated.temp_001.vcf"
 
+        # Remove temp file 
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.vcf"
+
         # Annotate variants with variant type
         logger INFO "Annotating variants with variant type classification for cohort: ${green_color}${sample_ids_joined}${reset}"
 
@@ -811,6 +849,8 @@ function main() {
             SnpSift -Xmx${max_memory_gb}g varType \
                 "${output_dir_path}/cohort.filtered.normalized.annotated.temp_001.vcf" \
                 > "${output_dir_path}/cohort.filtered.normalized.annotated.temp_002.vcf"
+
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_001.vcf"
 
         # Annotate variants with ClinVar database
         if [[ -n "${standard_annotation_resources[clinvar]:-}" && -f "${standard_annotation_resources[clinvar]:-}" ]]; then
@@ -828,6 +868,8 @@ function main() {
                 "${output_dir_path}/cohort.filtered.normalized.annotated.temp_003.vcf"
         fi
 
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_002.vcf"
+
         # Annotate variants with 1000G phase3 database
         if [[ -n "${standard_annotation_resources[1000g-phase3]:-}" && -f "${standard_annotation_resources[1000g-phase3]:-}" ]]; then
             logger INFO "Annotating variants with 1000 Genomes Phase 3 database for cohort: ${green_color}${sample_ids_joined}${reset}"
@@ -844,6 +886,8 @@ function main() {
                 "${output_dir_path}/cohort.filtered.normalized.annotated.temp_004.vcf"
         fi
 
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_003.vcf"
+
         # Annotate variants with ESP6500 database
         if [[ -n "${standard_annotation_resources[esp6500]:-}" && -f "${standard_annotation_resources[esp6500]:-}" ]]; then
             logger INFO "Annotating variants with ESP6500 database for cohort: ${green_color}${sample_ids_joined}${reset}"
@@ -859,6 +903,8 @@ function main() {
             cp "${output_dir_path}/cohort.filtered.normalized.annotated.temp_004.vcf" \
                 "${output_dir_path}/cohort.filtered.normalized.annotated.temp_005.vcf"
         fi
+
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_004.vcf"
 
         # Annotate variants with dbSNP 138
         if [[ -n "${standard_annotation_resources[dbsnp138]:-}" && -f "${standard_annotation_resources[dbsnp138]:-}" ]]; then
@@ -877,6 +923,8 @@ function main() {
                 "${output_dir_path}/cohort.filtered.normalized.annotated.temp_006.vcf"
         fi
 
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_005.vcf"
+
         # Annotate variants with dbNSFP database
         if [[ -n "${standard_annotation_resources[dbnsfp]:-}" && -f "${standard_annotation_resources[dbnsfp]:-}" ]]; then
             logger INFO "Annotating variants with dbNSFP database for cohort: ${green_color}${sample_ids_joined}${reset}"   
@@ -892,6 +940,7 @@ function main() {
                 "${output_dir_path}/cohort.filtered.normalized.annotated.temp_007.vcf"
         fi
 
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_006.vcf"
         # ---------- Select Variants ----------
 
         if contains_variant_type "all" || (contains_variant_type "snp" && contains_variant_type "indel"); then
@@ -918,7 +967,8 @@ function main() {
                     "${select_type_flags[@]}" \
                     -O "${output_dir_path}/${sample_id}/${sample_id}.final.vcf"
         done
-        
+        rm -rf "${output_dir_path}/cohort.filtered.normalized.annotated.temp_007.vcf"
+
         for sample in "${samples[@]}"; do
             sample_id=$(jq -r '.id' <<< "$sample")
 
@@ -1439,6 +1489,12 @@ PYTHON
                     -f "${reference_genome_file_path}" \
                     -o "${output_dir_path}/${sample_id}/${sample_id}.antitargetcoverage.cnn"
         done
+
+        for sample in "${samples[@]}"; do
+            # Extract sample metadata for the workflow
+            sample_id=$(jq -r '.id' <<< "$sample")
+            rm -rf "${output_dir_path}/${sample_id}/${sample_id}.sorted.marked.bam"
+        done  
 
         for sample in "${samples[@]}"; do
             sample_id=$(jq -r '.id' <<< "$sample")
