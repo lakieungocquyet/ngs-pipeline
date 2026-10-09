@@ -1,5 +1,5 @@
 # Overview
-Workflow for NGS data analysis
+Pipeline for NGS data analysis
 
 This repository contains source code. The contents of this repository are 100% open source and released under the GPL-3.0 license (see [LICENSE.TXT](https://github.com/lakieungocquyet/ngs-pipeline/blob/main/LICENSE)).
 
@@ -67,38 +67,47 @@ home/
 └──user/
     └──NGS_samples/
         ├── sample01/
-        │   ├── sample1.R1.fastq.gz
-        │   └── sample1.R2.fastq.gz
+        │   ├── sample01_1.trim.fastq.gz
+        │   └── sample01_2.trim.fastq.gz
         └── sample02/
-            ├── sample2.R1.fastq.gz
-            └── sample2.R2.fastq.gz
+            ├── sample02_1.trim.fastq.gz
+            └── sample02_2.trim.fastq.gz
 ```
 ### 2. Configure input parameters (YAML)
 
 `ngs-pipeline` uses a YAML configuration file to define the input samples.
 
-Example: `run.yaml`
+Use `ngs-pipeline init` to generate a template configuration file instead of writing it by hand.
+
+```bash
+ngs-pipeline init \
+    --pipeline call-variants \
+    --output-file ~/ngs-pipeline/example/run.yaml \
+    --number-of-samples 2
+```
+The generated `~/ngs-pipeline/example/run.yaml` contains one empty entry per sample:
 
 ```yaml
+# Please don't use tab characters for indentation in this file. Use spaces only. 
+sample:
+  - id:        # sample id
+    read1:     # path/to/read1/fastq/file
+    read2:     # path/to/read2/fastq/file
+  - id:        # sample id
+    read1:     # path/to/read1/fastq/file
+    read2:     # path/to/read2/fastq/file
+```
+
+### 3. Fill in the YAML file 
+```yaml
 # Please don't use tab characters for indentation in this file. Use spaces only.
-sample: [
-  {
-    id: sample01,
-    read1: /home/user/NGS_samples/sample01/sample01_1.trim.fastq.gz,
+sample:
+  - id: sample01
+    read1: /home/user/NGS_samples/sample01/sample01_1.trim.fastq.gz
     read2: /home/user/NGS_samples/sample01/sample01_2.trim.fastq.gz
-  },
-  {
-    id: sample02,
-    read1: /home/user/NGS_samples/sample02/sample02_1.trim.fastq.gz,
+  - id: sample02
+    read1: /home/user/NGS_samples/sample02/sample02_1.trim.fastq.gz
     read2: /home/user/NGS_samples/sample02/sample02_2.trim.fastq.gz
-  },
-  # You can add more samples as needed
-  # {
-  #   id: ,
-  #   read1: ,
-  #   read2:
-  # },
-]
 ```
 
 #### Configuration details
@@ -112,7 +121,7 @@ Fields:
 - `id`: unique sample identifier
 - `read1`, `read2`: paths to paired-end FASTQ files
 
-### 3. Run the variant calling pipeline
+### 4. Run the variant calling pipeline
 
 Example:
 
@@ -152,8 +161,57 @@ ngs-pipeline --help
 
 | Command | Description |
 |---------|-------------|
+| `init` | Generate a template input YAML file to start a pipeline |
 | `call-variants` | Run variant calling pipeline |
 | `--help` | Show help message for `ngs-pipeline` and exit |
+* `ngs-pipeline --help`
+
+```
+Program: Pipeline for NGS data analysis
+License: GNU General Public License Version 3, 29 June 2007
+Contact: La Kieu Ngoc Quyet <quyetlakn@gmail.com>
+
+Usage:
+
+       ngs-pipeline <command> [arguments]
+
+Commands:
+
+  Pipeline commands:
+    init                  Generate a template input YAML file to start a pipeline
+    call-variants         Run variant calling pipeline
+
+  Others:
+    -h, --help            Show this help message and exit
+
+Use 'ngs-pipeline <command> -h' for more information on a command.
+```
+
+* `ngs-pipeline init`
+
+```
+About: Generate a template input YAML file to start a pipeline
+Usage:
+
+       ngs-pipeline init [arguments]
+
+Arguments:
+
+    Required arguments:
+    -pl, --pipeline <PIPELINE_NAME>
+        Pipeline name to generate a template YAML file
+
+    -o, --output-file <FILE>
+        Output file path (default: <PIPELINE_NAME>.yaml).
+
+    Optional arguments:
+    -N, --number-of-samples <INT>
+        Number of samples (default: 1)
+
+    Others:
+    -h, --help
+        Show this help message and exit
+```
 
 * `ngs-pipeline call-variants`
 
