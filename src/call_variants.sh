@@ -201,6 +201,9 @@ is_valid_variant_type() {
 
 # ----------------------------------------------------------------------------------------------------
 
+#==================================================#
+#                   PARSE ARGUMENTS                #
+#==================================================#
 if [[ $# -eq 0 ]]; then
     help
     exit 0
@@ -316,6 +319,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
 #==================================================#
 #         VALIDATE REQUIRED ARGUMENTS              #
 #==================================================#
@@ -360,7 +364,7 @@ if [[ ! -f "$reference_genome_file_path" ]]; then
 fi
 
 #==================================================#
-#         VALIDATE OPTIONAL ARGUMENTS               #
+#             VALIDATE OPTIONAL ARGUMENTS          #
 #==================================================#
 
 # --bqsr-known-sites (optional, cảnh báo nếu file không tồn tại, không exit)
@@ -522,7 +526,7 @@ esac
 # echo "${#samples[@]}"
 # echo "${samples[0]}"  
 
-function main() {
+function call_variants() {
 
     #==================================================#
     #              WORKFLOW INITIALIZATION             #
@@ -1697,4 +1701,4 @@ PYTHON
 
 }
 
-main
+call_variants
