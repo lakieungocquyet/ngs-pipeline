@@ -35,23 +35,24 @@ function logger() {
 
 function help() {
     echo ""
-    echo "Program: Workflow for NGS data analysis"
+    echo "Program: Pipeline for NGS data analysis"
     echo "License: GNU General Public License Version 3, 29 June 2007"
     echo "Contact: La Kieu Ngoc Quyet <quyetlakn@gmail.com>"
     echo ""
     echo "Usage:"
     echo ""
-    echo "       ngs_pipeline <command> [arguments]"
+    echo "       ngs-pipeline <command> [arguments]"
     echo ""
     echo "Commands:"
     echo ""
-    echo "  Workflow commands:"
+    echo "  Pipeline commands:"
+    echo "    init                  Generate a template input YAML file to start a pipeline"
     echo "    call-variants         Run variant calling pipeline"
     echo ""
     echo "  Others:"
     echo "    -h, --help            Show this help message and exit"
     echo ""
-    echo "Use 'ngs_pipeline <command> -h' for more information on a command."
+    echo "Use 'ngs-pipeline <command> -h' for more information on a command."
 }
 
 if [[ $# -eq 0 ]]; then
@@ -61,6 +62,16 @@ fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        init)
+            shift
+            script_path="$SCRIPT_DIR_PATH/init.sh"
+            if [[ ! -f "$script_path" ]]; then
+                echo "Error: Cannot find $script_path" >&2
+                exit 1
+            fi
+            bash "$script_path" "$@"
+            exit $?
+            ;;
         call-variants)
             shift
             script_path="$SCRIPT_DIR_PATH/call_variants.sh"
